@@ -8,10 +8,12 @@ import sys
 import subprocess
 import datetime
 import getopt
+import config
+import pytz
 
 class TwitchRecorder:
-    def __init__(self):
-        
+    def __init__(self, username='twitch', quality='best'):
+
         # deleting previous processed streams from recorded folder
         print('Do you want to delete previous processed streams from recorded folder? y/n')
         delete_recorded_ans=str(input())
@@ -19,23 +21,23 @@ class TwitchRecorder:
             self.cleanrecorded = 1
         else:
             self.cleanrecorded = 0
-            
+
         # global configuration
         self.client_id = "kimne78kx3ncx6brgo4mv6wki5h1ko" # Don't change this
-        self.ffmpeg_path = r"D:\\twitch" # path to ffmpeg.exe
-        self.refresh = 1.0 # Time between checking (1.0 is recommended)
-        self.root_path = r"D:\\twitch" # path to recorded and processed streams
-        self.timezone = 3 # UTC timezone
-        self.timezoneName = 'Europe/Moscow' # name of timezone (list of timezones: https://stackoverflow.com/questions/13866926/is-there-a-list-of-pytz-timezones)
-        self.chatdownload = 1 #0 - disable chat downloading, 1 - enable chat downloading
-        self.cmdstate = 2 #0 - not minimazed cmd close after processing, 1 - minimazed cmd close after processing, 2 - minimazed cmd don't close after processing
+        self.ffmpeg_path = config.ffmpeg_path # path to ffmpeg.exe
+        self.refresh = 15.0 # Time between checking (15.0 is recommended)
+        self.root_path = config.root_path # path to recorded and processed streams
+        self.timezoneName = config.timezoneName # name of timezone (list of timezones: https://stackoverflow.com/questions/13866926/is-there-a-list-of-pytz-timezones)
+        self.timezone = int(pytz.timezone(self.timezoneName).localize(datetime.datetime.now()).tzinfo._utcoffset.seconds/60/60) # UTC timezone
+        self.chatdownload = 0 #0 - disable chat downloading, 1 - enable chat downloading
+        self.cmdstate = 2 #0 - not minimized cmd close after processing, 1 - minimized cmd close after processing, 2 - minimized cmd don't close after processing
         self.downloadVOD = 0 #0 - disable VOD downloading after stream's ending, 1 - enable VOD downloading after stream's ending
-        
-        
+
+
         # user configuration
-        self.username = "gamesdonequick"
-        self.quality = "best"
-        
+        self.username = username
+        self.quality = quality
+
         # cmdstatecommand
         if self.cmdstate == 2:
             self.cmdstatecommand = "/min cmd.exe /k".split()
@@ -43,7 +45,7 @@ class TwitchRecorder:
             self.cmdstatecommand = "/min".split()
         else:
             self.cmdstatecommand = "".split()
-        
+
         # start text
         print('Configuration:')
         print('Root path: ' + self.root_path)
@@ -57,7 +59,7 @@ class TwitchRecorder:
             print('VOD downloading Enabled')
         else:
             print('VOD downloading Disabled')
-        
+
     def run(self):
         # path to recorded stream
         self.recorded_path = os.path.join(self.root_path, "recorded", self.username)
@@ -76,9 +78,9 @@ class TwitchRecorder:
             print("Check interval should not be lower than 1 seconds.")
             self.refresh = 1
             print("System set check interval to 1 seconds.")
-        
+
         # Checking for previous files
-        
+
         try:
             video_list = [f for f in os.listdir(self.recorded_path) if os.path.isfile(os.path.join(self.recorded_path, f))]
             if(len(video_list) > 0):
@@ -108,7 +110,7 @@ class TwitchRecorder:
                     elif self.cleanrecorded == 1:
                         recorded_filename = os.path.join(self.recorded_path, f)
                         print('Fixing ' + recorded_filename + '.')
-                        os.remove(recorded_filename)                    
+                        os.remove(recorded_filename)
                 elif f[11] == 'h':
                     dirname = f[:-4]
                     dirname = "".join(x for x in dirname if x.isalnum() or not x in ["/","\\",":","?","*",'"',">","<","|"])
@@ -158,16 +160,16 @@ class TwitchRecorder:
                         os.remove(recorded_filename)
         except Exception as e:
             print(e)
-        
+
         print("Checking for", self.username, "every", self.refresh, "seconds. Record with", self.quality, "quality.")
         self.loopcheck()
 
     def check_user(self):
-        # 0: online, 
-        # 1: offline, 
-        # 2: not found, 
+        # 0: online,
+        # 1: offline,
+        # 2: not found,
         # 3: error
-        
+
         url = 'https://api.twitch.tv/kraken/channels/' + self.username
         info = None
         status = 3
@@ -198,15 +200,15 @@ class TwitchRecorder:
             elif status == 0:
                 filename = datetime.datetime.now().strftime("%Y%m%d_%Hh%Mm%Ss") + "_" + self.username + "_" + str(info['status']) + '_' + str(info['game']) + ".mp4"
                 present_date=datetime.datetime.now().strftime("%Y%m%d")
-                
+
                 # clean filename from unecessary characters
                 filename = "".join(x for x in filename if x.isalnum() or not x in ["/","\\",":","?","*",'"',">","<","|"])
-                
+
                 recorded_filename = os.path.join(self.recorded_path, filename)
-                
+
                 # start streamlink process
                 subprocess.call(["streamlink", "--twitch-disable-hosting", "twitch.tv/" + self.username, self.quality, "-o", recorded_filename])
-                
+
                 if(os.path.exists(recorded_filename) is True):
                     try:
                         channel_id=info["_id"]
@@ -260,7 +262,7 @@ class TwitchRecorder:
                                 os.makedirs(processed_stream_path)
                     except Exception as e:
                         print(e)
-                
+
                 print("Recording stream is done. Fixing video file.")
                 if(os.path.exists(recorded_filename) is True):
                     try:
@@ -271,7 +273,7 @@ class TwitchRecorder:
                         print(e)
                 else:
                     print("Skip fixing. File not found.")
-                    
+
                 print("Fixing is done. Going back to checking..")
                 time.sleep(self.refresh)
 
